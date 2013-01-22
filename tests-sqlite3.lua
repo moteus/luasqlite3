@@ -35,6 +35,8 @@ local lunit = require "lunitx"
 
 local tests_sqlite3
 
+local unpack = unpack or table.unpack
+
 if _VERSION >= 'Lua 5.2' then 
 
     tests_sqlite3 = lunit.module('tests-sqlite3','seeall')

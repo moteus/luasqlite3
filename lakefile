@@ -1,0 +1,48 @@
+
+PROJECT = 'lsqlite3'
+
+if LUA_VER == '5.2' then
+  LUA_NEED = 'lua52'
+  LUA_DIR = ENV.LUA_DIR_5_2 or ENV.LUA_DIR
+  LUA_RUNNER = 'lua52'
+else
+  LUA_NEED = 'lua51'
+  LUA_DIR = ENV.LUA_DIR
+  LUA_RUNNER = 'lua'
+end
+
+DYNAMIC = DYNAMIC or false
+
+SQLITE3_NEED = "sqlite3" .. '-static' .. IF(MSVC, IF(DYNAMIC, '-md', '-mt'), '')
+
+INSTALL_DIR = INSTALL_DIR or J(LUA_DIR,'libs',PROJECT)
+
+lsqlite3 = c.shared{'lsqlite3',
+  base = '.',
+  src = 'lsqlite3.c',
+  needs = {LUA_NEED,SQLITE3_NEED};
+  dynamic = DYNAMIC;
+  strip = true,
+  defines = {
+    "WINDOWS";
+    "_WINDLL";
+    "_USRDLL";
+  };
+  libflags = IF(MSVC, '/EXPORT:luaopen_lsqlite3');
+}
+
+target('build', parser)
+
+install = target('install', {
+  file.group{odir=J(INSTALL_DIR, 'share');src = lsqlite3 };
+  file.group{odir=J(INSTALL_DIR, 'examples'); src = 'examples' };
+  file.group{odir=J(INSTALL_DIR, 'doc'); src = 'doc' };
+  file.group{odir=J(INSTALL_DIR, 'test'); src = 'test*.lua'};
+  -- file.group{odir=J(INSTALL_DIR, 'test'); src = 'lunit.lua'};
+})
+
+target('test', install, function()
+  local test_dir = J(INSTALL_DIR,'test')
+  run(J(test_dir,'test.lua'), test_dir)
+  run(J(test_dir,'tests-sqlite3.lua'), test_dir)
+end)

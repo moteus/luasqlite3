@@ -1,5 +1,7 @@
 local sqlite3 = require("lsqlite3")
 
+local unpack = unpack or table.unpack
+
 local width = 78
 local function line(pref, suff)
     pref = pref or ''

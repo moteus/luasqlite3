@@ -70,10 +70,11 @@ lunit_wrap("open_memory", function()
 end)
 
 lunit_wrap("open", function()
-  local filename = "/tmp/__lua-sqlite3-20040906135849." .. os.time()
+  -- local filename = "/tmp/__lua-sqlite3-20040906135849." .. os.time()
+  local filename = "" -- create temp db on disk
   local db = assert_userdata( sqlite3.open(filename) )
   assert( db:close() )
-  os.remove(filename)
+  -- os.remove(filename)
 end)
 
 

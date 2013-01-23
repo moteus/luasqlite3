@@ -1896,3 +1896,7 @@ LUALIB_API int luaopen_lsqlite3(lua_State *L) {
 
     return 1;
 }
+
+LUALIB_API int luaopen_lsqlite3_core(lua_State *L) {
+    return luaopen_lsqlite3(L);
+}

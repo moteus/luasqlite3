@@ -17,7 +17,7 @@ SQLITE3_NEED = "sqlite3" .. '-static' .. IF(MSVC, IF(DYNAMIC, '-md', '-mt'), '')
 
 INSTALL_DIR = INSTALL_DIR or J(LUA_DIR,'libs',PROJECT)
 
-lsqlite3 = c.shared{'lsqlite3',
+lsqlite3 = c.shared{'core',
   base = '.',
   src = 'lsqlite3.c',
   needs = {LUA_NEED,SQLITE3_NEED};
@@ -28,17 +28,20 @@ lsqlite3 = c.shared{'lsqlite3',
     "_WINDLL";
     "_USRDLL";
   };
-  libflags = IF(MSVC, '/EXPORT:luaopen_lsqlite3');
+  libflags = IF(MSVC, {
+    '/EXPORT:luaopen_lsqlite3';
+    '/EXPORT:luaopen_lsqlite3_core';
+  });
 }
 
 target('build', parser)
 
 install = target('install', {
-  file.group{odir=J(INSTALL_DIR, 'share');src = lsqlite3 };
+  file.group{odir=J(INSTALL_DIR, 'share', PROJECT);src = lsqlite3 };
+  file.group{odir=J(INSTALL_DIR, 'share'), src = "lsqlite3.lua" };
   file.group{odir=J(INSTALL_DIR, 'examples'); src = 'examples' };
   file.group{odir=J(INSTALL_DIR, 'doc'); src = 'doc' };
   file.group{odir=J(INSTALL_DIR, 'test'); src = 'test*.lua'};
-  -- file.group{odir=J(INSTALL_DIR, 'test'); src = 'lunit.lua'};
 })
 
 target('test', install, function()

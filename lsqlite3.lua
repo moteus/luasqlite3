@@ -29,22 +29,17 @@ local function first_row(stmt, get_row_func, autoclose)
 
   if status == sqlite3.DONE then
     if autoclose then stmt:finalize() else stmt:reset() end
-    return nil, "No row returned."
+    return nil, sqlite3.DONE
   end
 
-  if status == sqlite3.ERROR then
+  if (status == sqlite3.ERROR) or (status == sqlite3.BUSY) or (status == sqlite3.MISUSE) then
     local errmsg = db:error_message()
     if autoclose then stmt:finalize() else stmt:reset() end
-    return nil, errmsg
-  end
-
-  if (status == sqlite3.BUSY) or (status == sqlite3.MISUSE) then
-    if autoclose then stmt:finalize() else stmt:reset() end
-    return nil, status
+    return nil, errmsg, status
   end
 
   if autoclose then stmt:finalize() else stmt:reset() end
-  return nil, "stmt:first_row: Internal error!"
+  return nil, "stmt:first_row: Internal error!", status
 end
 
 local function get_nrow(stmt)
@@ -60,19 +55,19 @@ local function get_nrow(stmt)
 end
 
 function sqlite3_db:first_row(sql)
-  local stmt, err = db:prepare(sql)
+  local stmt, err = self:prepare(sql)
   if not stmt then return nil, err end
   return first_row(stmt, stmt.get_values, true)
 end
 
 function sqlite3_db:first_urow(sql)
-  local stmt, err = db:prepare(sql)
+  local stmt, err = self:prepare(sql)
   if not stmt then return nil, err end
   return first_row(stmt, stmt.get_uvalues, true)
 end
 
 function sqlite3_db:first_nrow(sql)
-  local stmt, err = db:prepare(sql)
+  local stmt, err = self:prepare(sql)
   if not stmt then return nil, err end
   return first_row(stmt, get_nrow, true)
 end

@@ -97,17 +97,21 @@ function db_funcs.test()
   local db = db_funcs.db
   assert_function( db.close )
   assert_function( db.exec )
---e  assert_function( db.irows )
+  assert_function( db.urows )
   assert_function( db.rows )
---e  assert_function( db.cols )
---e  assert_function( db.first_irow )
---e  assert_function( db.first_row )
---e  assert_function( db.first_cols )
+  assert_function( db.nrows )
+  assert_function( db.first_urow )
+  assert_function( db.first_row )
+  assert_function( db.first_nrow )
   assert_function( db.prepare )
+  assert_function( db.prepare_v2 )
   assert_function( db.interrupt )
   assert_function( db.last_insert_rowid )
   assert_function( db.changes )
   assert_function( db.total_changes )
+  assert_function( db.errcode )
+  assert_function( db.errmsg )
+  assert_function( db.extended_errcode )
 end
 
 
@@ -135,12 +139,12 @@ function stmt_funcs.test()
   assert_function( stmt.reset )
 --e  assert_function( stmt.exec )
   assert_function( stmt.bind )
---e  assert_function( stmt.irows )
---e  assert_function( stmt.rows )
---e  assert_function( stmt.cols )
---e  assert_function( stmt.first_irow )
---e  assert_function( stmt.first_row )
---e  assert_function( stmt.first_cols )
+  assert_function( stmt.urows )
+  assert_function( stmt.rows )
+  assert_function( stmt.nrows )
+  assert_function( stmt.first_urow )
+  assert_function( stmt.first_row )
+  assert_function( stmt.first_nrow )
 --e  assert_function( stmt.column_names )
 --e  assert_function( stmt.column_decltypes )
 --e  assert_function( stmt.column_count )
@@ -192,19 +196,21 @@ function basics.teardown()
 end
 
 function basics.create_table()
-  assert_number( basics.db:exec("CREATE TABLE test (id, name)") )
+  assert_equal(sqlite3.OK, basics.db:exec("CREATE TABLE test (id, name)") )
 end
 
 function basics.drop_table()
-  assert_number( basics.db:exec("DROP TABLE test") )
+  assert_equal(sqlite3.OK, basics.db:exec("DROP TABLE test") )
 end
 
 function basics.insert(id, name)
-  assert_number( basics.db:exec("INSERT INTO test VALUES ("..id..", '"..name.."')") )
+  assert_equal(sqlite3.OK, basics.db:exec("INSERT INTO test VALUES ("..id..", '"..name.."')") )
+  assert_equal(1, basics.db:changes())
 end
 
 function basics.update(id, name)
-  assert_number( basics.db:exec("UPDATE test SET name = '"..name.."' WHERE id = "..id) )
+  assert_equal(sqlite3.OK, basics.db:exec("UPDATE test SET name = '"..name.."' WHERE id = "..id) )
+  assert_equal(1, basics.db:changes())
 end
 
 function basics.test_create_drop()
@@ -239,24 +245,28 @@ end
 ---------------------------------
 
 lunit_wrap("Column Info Test", function()
-  local db = assert_userdata( sqlite3.open_memory() )
-  assert_number( db:exec("CREATE TABLE test (id INTEGER, name TEXT)") )
-  local stmt = assert_userdata( db:prepare("SELECT * FROM test") )
-  
-  assert_equal(2, stmt:columns(), "Wrong number of columns." )
-  
-  local names = assert_table( stmt:get_names() )
-  assert_equal(2, #(names), "Wrong number of names.")
-  assert_equal("id", names[1] )
-  assert_equal("name", names[2] )
-  
-  local types = assert_table( stmt:get_types() )
-  assert_equal(2, #(types), "Wrong number of declaration types.")
-  assert_equal("INTEGER", types[1] )
-  assert_equal("TEXT", types[2] )
-  
-  assert_equal( sqlite3.OK, stmt:finalize() )
-  assert_equal( sqlite3.OK, db:close() )
+  local function dotest(prepare)
+    local db = assert_userdata( sqlite3.open_memory() )
+    assert_number( db:exec("CREATE TABLE test (id INTEGER, name TEXT)") )
+    local stmt = assert_userdata( db[prepare](db,"SELECT * FROM test") )
+    
+    assert_equal(2, stmt:columns(), "Wrong number of columns." )
+    
+    local names = assert_table( stmt:get_names() )
+    assert_equal(2, #(names), "Wrong number of names.")
+    assert_equal("id", names[1] )
+    assert_equal("name", names[2] )
+    
+    local types = assert_table( stmt:get_types() )
+    assert_equal(2, #(types), "Wrong number of declaration types.")
+    assert_equal("INTEGER", types[1] )
+    assert_equal("TEXT", types[2] )
+    
+    assert_equal( sqlite3.OK, stmt:finalize() )
+    assert_equal( sqlite3.OK, db:close() )
+  end
+  dotest("prepare")
+  dotest("prepare_v2")
 end)
 
 
@@ -522,18 +532,16 @@ function bug.teardown()
   assert_number( bug.db:close() )
 end
 
---[===[
 function bug.test_1()
   bug.db:exec("CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)")
   
   local query = assert_userdata( bug.db:prepare("SELECT id FROM test WHERE value=?") )
   
-  assert_table ( query:bind_values("1") )
-  assert_nil   ( query:first_cols() )
-  assert_table ( query:bind_values("2") )
-  assert_nil   ( query:first_cols() )
+  assert_equal (sqlite3.OK, query:bind_values("1") )
+  assert_nil   ( query:first_urow() )
+  assert_equal (sqlite3.OK, query:bind_values("2") )
+  assert_nil   ( query:first_urow() )
 end
-]===]
 
 function bug.test_nils()   -- appeared in lua-5.1 (holes in arrays)
   local function check(arg1, arg2, arg3, arg4, arg5)

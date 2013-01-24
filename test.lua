@@ -19,8 +19,7 @@ end
 
 line(sqlite3.version())
 
-os.remove('test.db')
-db = sqlite3.open('test.db')
+db = sqlite3.open('')
 
 line(nil, 'db:exec')
 db:exec('CREATE TABLE t(a, b)')

@@ -863,6 +863,12 @@ static int db_errcode(lua_State *L) {
     return 1;
 }
 
+static int db_extended_errcode(lua_State *L) {
+    sdb *db = lsqlite_checkdb(L, 1);
+    lua_pushnumber(L, sqlite3_extended_errcode(db->db));
+    return 1;
+}
+
 static int db_errmsg(lua_State *L) {
     sdb *db = lsqlite_checkdb(L, 1);
     lua_pushstring(L, sqlite3_errmsg(db->db));
@@ -1461,6 +1467,28 @@ static int db_prepare(lua_State *L) {
     return 2;
 }
 
+static int db_prepare_v2(lua_State *L) {
+    sdb *db = lsqlite_checkdb(L, 1);
+    const char *sql = luaL_checkstring(L, 2);
+    int sql_len = lua_strlen(L, 2);
+    const char *sqltail;
+    sdb_vm *svm;
+    lua_settop(L,2); /* sql is on top of stack for call to newvm */
+    svm = newvm(L, db);
+
+    if (sqlite3_prepare_v2(db->db, sql, sql_len, &svm->vm, &sqltail) != SQLITE_OK) {
+        cleanupvm(L, svm);
+
+        lua_pushnil(L);
+        lua_pushnumber(L, sqlite3_errcode(db->db));
+        return 2;
+    }
+
+    /* vm already in the stack */
+    lua_pushstring(L, sqltail);
+    return 2;
+}
+
 static int db_do_next_row(lua_State *L, int packed) {
     int result;
     sdb_vm *svm = lsqlite_checkvm(L, 1);
@@ -1727,6 +1755,19 @@ static const struct {
     SC(MISMATCH)    SC(MISUSE)      SC(NOLFS)
     SC(FORMAT)      SC(NOTADB)
 
+    /* Extended Result Codes */
+    SC(IOERR_READ)        SC(IOERR_SHORT_READ)        SC(IOERR_WRITE)
+    SC(IOERR_FSYNC)       SC(IOERR_DIR_FSYNC)         SC(IOERR_TRUNCATE)
+    SC(IOERR_FSTAT)       SC(IOERR_UNLOCK)            SC(IOERR_RDLOCK)
+    SC(IOERR_DELETE)      SC(IOERR_BLOCKED)           SC(IOERR_NOMEM)
+    SC(IOERR_ACCESS)      SC(IOERR_CHECKRESERVEDLOCK) SC(IOERR_LOCK)
+    SC(IOERR_CLOSE)       SC(IOERR_DIR_CLOSE)         SC(IOERR_SHMOPEN)
+    SC(IOERR_SHMSIZE)     SC(IOERR_SHMLOCK)           SC(IOERR_SHMMAP)
+    SC(IOERR_SEEK)        SC(IOERR_DELETE_NOENT)      SC(LOCKED_SHAREDCACHE)
+    SC(BUSY_RECOVERY)     SC(CANTOPEN_NOTEMPDIR)      SC(CANTOPEN_ISDIR)
+    SC(CANTOPEN_FULLPATH) SC(CORRUPT_VTAB)            SC(READONLY_RECOVERY)
+    SC(READONLY_CANTLOCK) SC(ABORT_ROLLBACK)
+
     /* sqlite_step specific return values */
     SC(RANGE)       SC(ROW)         SC(DONE)
 
@@ -1747,6 +1788,8 @@ static const luaL_Reg dblib[] = {
     {"total_changes",       db_total_changes        },
     {"errcode",             db_errcode              },
     {"error_code",          db_errcode              },
+    {"extended_errcode",    db_extended_errcode     },
+    {"extended_error_code", db_extended_errcode     },
     {"errmsg",              db_errmsg               },
     {"error_message",       db_errmsg               },
     {"interrupt",           db_interrupt            },
@@ -1761,6 +1804,7 @@ static const luaL_Reg dblib[] = {
     {"busy_handler",        db_busy_handler         },
 
     {"prepare",             db_prepare              },
+    {"prepare_v2",          db_prepare_v2           },
     {"rows",                db_rows                 },
     {"urows",               db_urows                },
     {"nrows",               db_nrows                },

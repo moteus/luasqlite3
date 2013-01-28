@@ -77,7 +77,44 @@ lunit_wrap("open", function()
   -- os.remove(filename)
 end)
 
+-------------------------------------
+-- open_v2                         --
+-------------------------------------
 
+local v2_open = lunit_TestCase("open_v2 interface")
+
+function v2_open.setup()
+  v2_open.db = nil
+end
+
+function v2_open.teardown()
+  if v2_open.db then assert( v2_open.db:close() ) end
+end
+
+function v2_open.test_const()
+  assert_function( sqlite3.open_uri            )
+  assert_function( sqlite3.open_v2             )
+  assert_number  ( sqlite3.OPEN_READONLY       )
+  assert_number  ( sqlite3.OPEN_READWRITE      )
+  assert_number  ( sqlite3.OPEN_CREATE         )
+  assert_number  ( sqlite3.OPEN_DELETEONCLOSE  )
+  assert_number  ( sqlite3.OPEN_EXCLUSIVE      )
+  assert_number  ( sqlite3.OPEN_AUTOPROXY      )
+  assert_number  ( sqlite3.OPEN_URI            )
+  assert_number  ( sqlite3.OPEN_MEMORY         )
+  assert_number  ( sqlite3.OPEN_MAIN_DB        )
+  assert_number  ( sqlite3.OPEN_TEMP_DB        )
+  assert_number  ( sqlite3.OPEN_TRANSIENT_DB   )
+  assert_number  ( sqlite3.OPEN_MAIN_JOURNAL   )
+  assert_number  ( sqlite3.OPEN_TEMP_JOURNAL   )
+  assert_number  ( sqlite3.OPEN_SUBJOURNAL     )
+  assert_number  ( sqlite3.OPEN_MASTER_JOURNAL )
+  assert_number  ( sqlite3.OPEN_NOMUTEX        )
+  assert_number  ( sqlite3.OPEN_FULLMUTEX      )
+  assert_number  ( sqlite3.OPEN_SHAREDCACHE    )
+  assert_number  ( sqlite3.OPEN_PRIVATECACHE   )
+  assert_number  ( sqlite3.OPEN_WAL            )
+end
 
 -------------------------------------
 -- Presence of db member functions --

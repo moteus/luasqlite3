@@ -1718,6 +1718,26 @@ static int lsqlite_do_open(lua_State *L, const char *filename) {
     return 3;
 }
 
+static int lsqlite_do_open_v2(lua_State *L, const char *filename, int flags) {
+    sdb *db = newdb(L); /* create and leave in stack */
+    int status;
+    if ((status = sqlite3_open_v2(filename, &db->db, flags, NULL)) == SQLITE_OK) {
+        /* database handle already in the stack - return it */
+        return 1;
+    }
+
+    /* failed to open database */
+    lua_pushnil(L);                             /* push nil */
+    lua_pushnumber(L, db->db ? sqlite3_errcode(db->db) : status);
+    lua_pushstring(L, sqlite3_errmsg(db->db));  /* push error message */
+
+    /* clean things up */
+    cleanupdb(L, db);
+
+    /* return */
+    return 3;
+}
+
 static int lsqlite_open(lua_State *L) {
     const char *filename = luaL_checkstring(L, 1);
     return lsqlite_do_open(L, filename);
@@ -1725,6 +1745,76 @@ static int lsqlite_open(lua_State *L) {
 
 static int lsqlite_open_memory(lua_State *L) {
     return lsqlite_do_open(L, ":memory:");
+}
+
+static int lsqlite_check_open_flag(lua_State *L, int idx){
+    int flags;
+    if(lua_istable(L, 2)) {
+        int top = lua_gettop(L);
+        flags = 0;
+        lua_pushnil(L);
+        while (lua_next(L, -2)) {
+            luaL_checkint(L, -2);
+            flags |= luaL_checkint(L, -1);
+            lua_pop(L, 1);
+        }
+        lua_settop(L, top);
+    }
+    else {
+        flags = luaL_checkint(L, idx);
+    }
+    return flags;
+}
+
+static int lsqlite_open_uri(lua_State *L) {
+    const char *filename = luaL_checkstring(L, 1);
+    int flags;
+    if(!lua_isnone(L, 2)) flags = lsqlite_check_open_flag(L, 2); else flags = 0;
+    return lsqlite_do_open_v2(L, filename, flags | SQLITE_OPEN_URI);
+}
+
+static int lsqlite_open_v2(lua_State *L) {
+    const char *filename = luaL_checkstring(L, 1);
+    return lsqlite_do_open_v2(L, filename, lsqlite_check_open_flag(L, 2));
+}
+
+#define SC(s) case SQLITE_ ## s : { static const char *mnemo = #s; return mnemo; } 
+const char* lsqlite_errcode2mnemo(int err) {
+    switch(err){
+        /* error codes */
+        SC(OK)          SC(ERROR)       SC(INTERNAL)    SC(PERM)
+        SC(ABORT)       SC(BUSY)        SC(LOCKED)      SC(NOMEM)
+        SC(READONLY)    SC(INTERRUPT)   SC(IOERR)       SC(CORRUPT)
+        SC(NOTFOUND)    SC(FULL)        SC(CANTOPEN)    SC(PROTOCOL)
+        SC(EMPTY)       SC(SCHEMA)      SC(TOOBIG)      SC(CONSTRAINT)
+        SC(MISMATCH)    SC(MISUSE)      SC(NOLFS)
+        SC(FORMAT)      SC(NOTADB)
+
+        /* Extended Result Codes */
+        SC(IOERR_READ)        SC(IOERR_SHORT_READ)        SC(IOERR_WRITE)
+        SC(IOERR_FSYNC)       SC(IOERR_DIR_FSYNC)         SC(IOERR_TRUNCATE)
+        SC(IOERR_FSTAT)       SC(IOERR_UNLOCK)            SC(IOERR_RDLOCK)
+        SC(IOERR_DELETE)      SC(IOERR_BLOCKED)           SC(IOERR_NOMEM)
+        SC(IOERR_ACCESS)      SC(IOERR_CHECKRESERVEDLOCK) SC(IOERR_LOCK)
+        SC(IOERR_CLOSE)       SC(IOERR_DIR_CLOSE)         SC(IOERR_SHMOPEN)
+        SC(IOERR_SHMSIZE)     SC(IOERR_SHMLOCK)           SC(IOERR_SHMMAP)
+        SC(IOERR_SEEK)        SC(IOERR_DELETE_NOENT)      SC(LOCKED_SHAREDCACHE)
+        SC(BUSY_RECOVERY)     SC(CANTOPEN_NOTEMPDIR)      SC(CANTOPEN_ISDIR)
+        SC(CANTOPEN_FULLPATH) SC(CORRUPT_VTAB)            SC(READONLY_RECOVERY)
+        SC(READONLY_CANTLOCK) SC(ABORT_ROLLBACK)
+    }
+    {
+        static const char *mnemo = "UNKNOWN";
+        return mnemo;
+    }
+}
+#undef SC
+
+int lsqlite_errmnemo(lua_State *L){
+    lua_pushstring(L,
+        lsqlite_errcode2mnemo(luaL_checkint(L, 1))
+    );
+    return 1;
 }
 
 static int lsqlite_newindex(lua_State *L) {
@@ -1767,6 +1857,17 @@ static const struct {
     SC(BUSY_RECOVERY)     SC(CANTOPEN_NOTEMPDIR)      SC(CANTOPEN_ISDIR)
     SC(CANTOPEN_FULLPATH) SC(CORRUPT_VTAB)            SC(READONLY_RECOVERY)
     SC(READONLY_CANTLOCK) SC(ABORT_ROLLBACK)
+
+    /* Ok for sqlite3_open_v2() */
+    SC(OPEN_READONLY)  SC(OPEN_READWRITE)   SC(OPEN_CREATE)
+    SC(OPEN_URI)       SC(OPEN_MEMORY)      SC(OPEN_NOMUTEX)
+    SC(OPEN_FULLMUTEX) SC(OPEN_SHAREDCACHE) SC(OPEN_PRIVATECACHE)
+
+    /* sqlite3_open_v2() VFS only */
+    SC(OPEN_DELETEONCLOSE)   SC(OPEN_EXCLUSIVE)    SC(OPEN_AUTOPROXY)
+    SC(OPEN_MAIN_DB)         SC(OPEN_TEMP_DB)      SC(OPEN_TRANSIENT_DB)
+    SC(OPEN_MAIN_JOURNAL)    SC(OPEN_TEMP_JOURNAL) SC(OPEN_SUBJOURNAL)
+    SC(OPEN_MASTER_JOURNAL)  SC(OPEN_WAL)
 
     /* sqlite_step specific return values */
     SC(RANGE)       SC(ROW)         SC(DONE)
@@ -1894,6 +1995,10 @@ static const luaL_Reg sqlitelib[] = {
 #endif
     {"open",            lsqlite_open            },
     {"open_memory",     lsqlite_open_memory     },
+    {"open_uri",        lsqlite_open_uri        },
+    {"open_v2",         lsqlite_open_uri        },
+    {"errmnemo",        lsqlite_errmnemo        },
+    
 
     {"__newindex",      lsqlite_newindex        },
     {NULL, NULL}
